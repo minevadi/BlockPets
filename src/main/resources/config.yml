@@ -2,8 +2,6 @@
 configVersion: 2
 # pet name tag color
 nameTagColor: "§b"
-# give this amount of xp when player feeds his pet
-feedXp: 5
 # teleport pets when owner teleports
 teleportPets: true
 # saved data, do not edit

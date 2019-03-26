@@ -1,18 +1,11 @@
-name: Pets
+name: BlockPets
 version: "${pom.version}"
 api: ["1.0.0"]
-author: PetteriM1
-main: me.petterim1.pets.Main
-description: Pets plugin for Nukkit
-website: https://github.com/PetteriM1/Pets/
-
-commands:
-  pet:
-    description: Pets command
-    usage: "/pet"
-    permission: pets.manage
+author: PetteriM1, wode490390
+main: me.petterim1.blockpets.Main
+description: BlockPets plugin for Nukkit
 
 permissions:
-  pets.manage:
-    description: "Allows user to manage pets"
+  blockpets.manage:
+    description: "Allows user to manage block-pets"
     default: op

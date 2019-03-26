@@ -1,4 +1,4 @@
-package me.petterim1.pets;
+package me.petterim1.blockpets;
 
 import cn.nukkit.Player;
 import cn.nukkit.block.Block;
@@ -9,37 +9,58 @@ import cn.nukkit.block.BlockSlab;
 import cn.nukkit.block.BlockStairs;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.entity.passive.EntityAnimal;
 import cn.nukkit.event.entity.EntityDamageEvent;
-import cn.nukkit.item.Item;
+import cn.nukkit.level.GlobalBlockPalette;
 import cn.nukkit.level.format.FullChunk;
-import cn.nukkit.level.particle.HeartParticle;
 import cn.nukkit.math.NukkitMath;
 import cn.nukkit.math.Vector2;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
+import java.util.concurrent.ThreadLocalRandom;
 
-public abstract class EntityPet extends EntityCreature {
+public class EntityBlockPet extends EntityCreature {
 
-    protected String owner = null;
-    protected Vector3 target = null;
-    protected Entity followTarget = null;
+    public static final int NETWORK_ID = 66;
+
+    protected String owner;
+    protected Vector3 target;
+    protected Entity followTarget;
     protected int stayTime = 0;
     protected int moveTime = 0;
-    protected int inLoveTicks = 0;
 
-    public EntityPet(FullChunk chunk, CompoundTag nbt) {
+    protected int blockId = 0;
+    protected int damage = 0;
+
+    public EntityBlockPet(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
-
-        this.setOwner(nbt.getString("Owner"));
-        this.setNameTagVisible(true);
-        this.setDataFlag(DATA_FLAGS, DATA_FLAG_TAMED, true);
-        if (nbt.getByte("Sitting") == 1) {
-            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SITTING, true);
-        }
     }
 
-    public void setRandomType() {}
+    @Override
+    public int getNetworkId() {
+        return NETWORK_ID;
+    }
+
+    @Override
+    public float getWidth() {
+        return 0.98f;
+    }
+
+    @Override
+    public float getLength() {
+        return 0.98f;
+    }
+
+    @Override
+    public float getHeight() {
+        return 0.98f;
+    }
+
+    @Override
+    protected float getBaseOffset() {
+        return 0.49f;
+    }
 
     @Override
     public String getName() {
@@ -47,31 +68,47 @@ public abstract class EntityPet extends EntityCreature {
     }
 
     @Override
+    protected void initEntity() {
+        super.initEntity();
+
+        if (this.namedTag != null) {
+            if (this.namedTag.contains("TileID")) {
+                this.blockId = this.namedTag.getInt("TileID");
+            }
+            if (this.namedTag.contains("Data")) {
+                this.damage = this.namedTag.getByte("Data");
+            }
+
+            if (this.namedTag.contains("Owner")) {
+                this.setOwner(this.namedTag.getString("Owner"));
+            }
+            this.setNameTagVisible(true);
+        }
+
+        if (this.blockId == 0) {
+            this.close();
+            return;
+        }
+
+        this.setDataProperty(new IntEntityData(DATA_VARIANT, GlobalBlockPalette.getOrCreateRuntimeId(this.getBlock(), this.getDamage())));
+    }
+
+    @Override
     public void saveNBT() {
         super.saveNBT();
+        this.namedTag.putInt("TileID", this.blockId);
+        this.namedTag.putByte("Data", this.damage);
 
         this.namedTag.putString("Owner", this.owner);
-        if (this.isSitting()) {
-            this.namedTag.putByte("Sitting", 1);
-        }
     }
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        return true;
-    }
-
-    @Override
-    public boolean onInteract(Player player, Item item) {
-        if (player == this.getOwner()) {
-            this.setSitting();
-        }
-
-        return true;
+        return false;
     }
 
     public Player getOwner() {
-        return Main.getInstance().getServer().getPlayer(this.owner);
+        return this.server.getPlayer(this.owner);
     }
 
     public void setOwner(String owner) {
@@ -87,25 +124,6 @@ public abstract class EntityPet extends EntityCreature {
         }
 
         return false;
-    }
-
-    public void setSitting() {
-        this.moveTime = 0;
-        this.stayTime = 60;
-
-        if (this.namedTag.getByte("Sitting") == 0) {
-            this.namedTag.putByte("Sitting", 1);
-            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SITTING, true);
-            this.saveNBT();
-        } else {
-            this.namedTag.putByte("Sitting", 0);
-            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SITTING, false);
-            this.saveNBT();
-        }
-    }
-
-    public boolean isSitting() {
-        return this.getDataFlag(DATA_FLAGS, DATA_FLAG_SITTING);
     }
 
     protected void checkTarget() {
@@ -137,31 +155,32 @@ public abstract class EntityPet extends EntityCreature {
             }
         }
 
-        if (this.target instanceof EntityCreature && !((EntityCreature) this.target).closed
+        if (this.target instanceof EntityCreature && !((Entity) this.target).closed
                 && ((EntityCreature) this.target).isAlive()
                 && this.targetOption((EntityCreature) this.target, this.distanceSquared(this.target))) {
             return;
         }
 
-        int x, z;
+        int x;
+        int z;
         if (this.stayTime > 0) {
-            if (Utils.rand(1, 100) > 5) {
+            if (ThreadLocalRandom.current().nextInt(1, 100) > 5) {
                 return;
             }
-            x = Utils.rand(10, 30);
-            z = Utils.rand(10, 30);
-            this.target = this.add(Utils.rand() ? x : -x, Utils.rand(-20, 20) / 10, Utils.rand() ? z : -z);
-        } else if (Utils.rand(1, 400) == 1) {
-            x = Utils.rand(10, 30);
-            z = Utils.rand(10, 30);
-            this.stayTime = Utils.rand(100, 200);
-            this.target = this.add(Utils.rand() ? x : -x, Utils.rand(-20, 20) / 10, Utils.rand() ? z : -z);
+            x = ThreadLocalRandom.current().nextInt(10, 30);
+            z = ThreadLocalRandom.current().nextInt(10, 30);
+            this.target = this.add(ThreadLocalRandom.current().nextBoolean() ? x : -x, ThreadLocalRandom.current().nextInt(-20, 20) / 10, ThreadLocalRandom.current().nextBoolean() ? z : -z);
+        } else if (ThreadLocalRandom.current().nextInt(1, 400) == 1) {
+            x = ThreadLocalRandom.current().nextInt(10, 30);
+            z = ThreadLocalRandom.current().nextInt(10, 30);
+            this.stayTime = ThreadLocalRandom.current().nextInt(100, 200);
+            this.target = this.add(ThreadLocalRandom.current().nextBoolean() ? x : -x, ThreadLocalRandom.current().nextInt(-20, 20) / 10, ThreadLocalRandom.current().nextBoolean() ? z : -z);
         } else if (this.moveTime <= 0 || this.target == null) {
-            x = Utils.rand(10, 30);
-            z = Utils.rand(10, 30);
+            x = ThreadLocalRandom.current().nextInt(10, 30);
+            z = ThreadLocalRandom.current().nextInt(10, 30);
             this.stayTime = 0;
-            this.moveTime = Utils.rand(60, 200);
-            this.target = this.add(Utils.rand() ? x : -x, 0, Utils.rand() ? z : -z);
+            this.moveTime = ThreadLocalRandom.current().nextInt(60, 200);
+            this.target = this.add(ThreadLocalRandom.current().nextBoolean() ? x : -x, 0, ThreadLocalRandom.current().nextBoolean() ? z : -z);
         }
     }
 
@@ -187,7 +206,7 @@ public abstract class EntityPet extends EntityCreature {
         }
 
         Block block = that.getSide(this.getHorizontalFacing());
-        if (!block.canPassThrough() && block.up().canPassThrough() && that.up(2).canPassThrough()) {
+        if (!block.canPassThrough() && block.up().canPassThrough()) {
             if (block instanceof BlockFence || block instanceof BlockFenceGate) {
                 this.motionY = this.getGravity();
             } else if (this.motionY <= this.getGravity() * 4) {
@@ -205,10 +224,6 @@ public abstract class EntityPet extends EntityCreature {
     }
 
     public Vector3 updateMove(int tickDiff) {
-        if (this.isSitting()) {
-            return this.target;
-        }
-
         if (this.followTarget != null && !this.followTarget.closed && this.followTarget.isAlive()) {
             double x = this.followTarget.x - this.x;
             double y = this.followTarget.y - this.y;
@@ -228,7 +243,6 @@ public abstract class EntityPet extends EntityCreature {
                 }
             }
             this.yaw = Math.toDegrees(-Math.atan2(x / diff, z / diff));
-            this.pitch = y == 0 ? 0 : Math.toDegrees(-Math.atan2(y, Math.sqrt(x * x + z * z)));
             return this.followTarget;
         }
 
@@ -253,7 +267,6 @@ public abstract class EntityPet extends EntityCreature {
                 }
             }
             this.yaw = Math.toDegrees(-Math.atan2(x / diff, z / diff));
-            this.pitch = y == 0 ? 0 : Math.toDegrees(-Math.atan2(y, Math.sqrt(x * x + z * z)));
         }
 
         double dx = this.motionX * tickDiff;
@@ -307,13 +320,17 @@ public abstract class EntityPet extends EntityCreature {
 
         Vector3 target = this.updateMove(tickDiff);
 
+        Player owner = this.getOwner();
         if (target instanceof Player) {
-            if (this.distanceSquared(target) <= 20) {
-                this.pitch = 22;
+            if (this.distanceSquared(target) <= 100) {
                 this.x = this.lastX;
                 this.y = this.lastY;
                 this.z = this.lastZ;
+            } else if (owner != null && owner.isOnGround()) {
+                this.teleport(target);
             }
+        } else if (owner != null && this.distanceSquared(owner) > 100 && owner.isOnGround()) {
+            this.teleport(owner);
         }
 
         return true;
@@ -325,15 +342,14 @@ public abstract class EntityPet extends EntityCreature {
             this.moveTime -= tickDiff;
         }
 
-        if (inLoveTicks > 0) {
-            this.inLoveTicks -= tickDiff;
-            if (this.age % 20 == 0) {
-                for (int i = 0; i < 3; i++) {
-                    this.level.addParticle(new HeartParticle(this.add(Utils.rand(-1.0, 1.0), this.getMountedYOffset() + Utils.rand(-1.0, 1.0), Utils.rand(-1.0, 1.0))));
-                }
-            }
-        }
-
         return true;
+    }
+
+    public int getBlock() {
+        return this.blockId;
+    }
+
+    public int getDamage() {
+        return this.damage;
     }
 }
