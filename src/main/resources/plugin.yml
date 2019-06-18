@@ -1,6 +1,6 @@
 name: BlockPets
 version: "${pom.version}"
-api: ["1.0.0"]
+api: ["1.0.7"]
 author: PetteriM1, wode490390
 main: me.petterim1.blockpets.Main
 description: BlockPets plugin for Nukkit

@@ -9,6 +9,7 @@ import cn.nukkit.command.data.CommandParameter;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.utils.Config;
 import cn.nukkit.utils.TextFormat;
+import java.util.Map;
 
 public class BlockPetCommand extends Command {
 
@@ -89,6 +90,7 @@ public class BlockPetCommand extends Command {
 
                 if (blockPet != null) {
                     blockPet.setOwner(player.getName());
+                    blockPet.spawnToAll();
 
                     this.config.set("players." + args[1].toLowerCase(), args[2] + ":" + damage);
                     this.config.save();
@@ -110,7 +112,7 @@ public class BlockPetCommand extends Command {
                     return true;
                 }
 
-                this.config.set("players." + args[1].toLowerCase(), "null");
+                ((Map) config.get("players")).remove(args[1].toLowerCase());
                 this.config.save();
 
                 this.server.getLevels().values().forEach((level) -> {

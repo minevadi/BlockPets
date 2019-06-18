@@ -4,20 +4,15 @@ import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.Listener;
+import cn.nukkit.event.entity.EntityPortalEnterEvent;
 import cn.nukkit.event.player.PlayerJoinEvent;
 import cn.nukkit.event.player.PlayerQuitEvent;
 import cn.nukkit.event.player.PlayerTeleportEvent;
 import cn.nukkit.level.GlobalBlockPalette;
 import cn.nukkit.level.Level;
-import cn.nukkit.level.format.FullChunk;
-import cn.nukkit.nbt.tag.CompoundTag;
-import cn.nukkit.nbt.tag.DoubleTag;
-import cn.nukkit.nbt.tag.FloatTag;
-import cn.nukkit.nbt.tag.ListTag;
 import cn.nukkit.plugin.PluginBase;
 import cn.nukkit.utils.Config;
 import cn.wode490390.nukkit.blockpets.MetricsLite;
-import java.util.NoSuchElementException;
 
 /*
 
@@ -45,6 +40,8 @@ PPPPPPPPPP            eeeeeeeeeeeeee            ttttttttttt    sssssssssss     !
 
 */
 public class Main extends PluginBase implements Listener {
+
+    private static final String ENTITY_BLOCK_PET = "BlockPet";
 
     private static final int CONFIG_VERSION = 2;
 
@@ -82,9 +79,9 @@ public class Main extends PluginBase implements Listener {
             }
         }
 
-        this.nameTagColor = this.config.getString("nameTagColor").replace("§", "\u00A7").replace("&", "\u00A7");
+        this.nameTagColor = this.config.getString("nameTagColor");
 
-        Entity.registerEntity("BlockPet", EntityBlockPet.class);
+        Entity.registerEntity(ENTITY_BLOCK_PET, EntityBlockPet.class);
         this.getServer().getPluginManager().registerEvents(this, this);
         this.getServer().getCommandMap().register("bpet", new BlockPetCommand(this.getServer(), this, this.config));
         new MetricsLite(this);
@@ -101,26 +98,25 @@ public class Main extends PluginBase implements Listener {
             try {
                 id = Integer.parseInt(block[0]);
                 damage = Integer.parseInt(block[1]);
-            } catch (NumberFormatException nfe) {
+            } catch (Exception ex) {
                 this.getLogger().warning("An error occurred while reading the data: " + name);
                 return;
             }
             EntityBlockPet blockPet = createBlockPet(p, id, damage);
             if (blockPet != null) {
                 blockPet.setOwner(name);
+                blockPet.spawnToAll();
             }
         }
     }
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler
     public void onPlayerQuit(PlayerQuitEvent e) {
         Player p = e.getPlayer();
         this.getServer().getLevels().values().forEach((level) -> {
             for (Entity entity : level.getEntities()) {
-                if (entity instanceof EntityBlockPet) {
-                    if (((EntityBlockPet) entity).getOwner() == p) {
-                        entity.close();
-                    }
+                if (entity instanceof EntityBlockPet && ((EntityBlockPet) entity).getOwner() == p) {
+                    entity.close();
                 }
             }
         });
@@ -134,17 +130,22 @@ public class Main extends PluginBase implements Listener {
         Player p = e.getPlayer();
         this.getServer().getLevels().values().forEach((level) -> {
             for (Entity entity : level.getEntities()) {
-                if (entity instanceof EntityBlockPet) {
-                    if (((EntityBlockPet) entity).getOwner() == p) {
-                        Level lvl = e.getTo().getLevel();
-                        if (lvl != entity.getLevel()) {
-                            entity.setLevel(lvl);
-                        }
-                        entity.teleport(e.getTo());
+                if (entity instanceof EntityBlockPet && ((EntityBlockPet) entity).getOwner() == p) {
+                    Level lvl = e.getTo().getLevel();
+                    if (lvl != entity.getLevel()) {
+                        entity.setLevel(lvl);
                     }
+                    entity.teleport(e.getTo());
                 }
             }
         });
+    }
+
+    @EventHandler
+    public void onEntityPortalEnter(EntityPortalEnterEvent e) {
+        if (e.getEntity() instanceof EntityBlockPet) {
+            e.setCancelled();
+        }
     }
 
     public String getNameTagColor() {
@@ -154,27 +155,11 @@ public class Main extends PluginBase implements Listener {
     public static EntityBlockPet createBlockPet(Player player, int id, int damage) {
         try {
             GlobalBlockPalette.getOrCreateRuntimeId(id, damage);
-        } catch (NoSuchElementException nsee) {
+            return (EntityBlockPet) Entity.createEntity(ENTITY_BLOCK_PET, player.getChunk(), Entity.getDefaultNBT(player)
+                    .putInt("TileID", id)
+                    .putByte("Data", damage));
+        } catch (Exception ex) {
             return null;
         }
-        FullChunk chunk = player.getLevel().getChunk(player.getFloorX() >> 4, player.getFloorZ() >> 4);
-        if (chunk != null) {
-            CompoundTag nbt = new CompoundTag()
-                    .putList(new ListTag<DoubleTag>("Pos")
-                            .add(new DoubleTag("", player.getX() + 0.5))
-                            .add(new DoubleTag("", player.getY()))
-                            .add(new DoubleTag("", player.getZ() + 0.5)))
-                    .putList(new ListTag<DoubleTag>("Motion")
-                            .add(new DoubleTag("", 0))
-                            .add(new DoubleTag("", 0))
-                            .add(new DoubleTag("", 0)))
-                    .putList(new ListTag<FloatTag>("Rotation")
-                            .add(new FloatTag("", 0))
-                            .add(new FloatTag("", 0)))
-                    .putInt("TileID", id)
-                    .putByte("Data", damage);
-            return (EntityBlockPet) Entity.createEntity("BlockPet", chunk, nbt);
-        }
-        return null;
     }
 }
